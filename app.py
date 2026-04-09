@@ -7,67 +7,69 @@ app = Flask(__name__)
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 GOOGLE_SCRIPT_URL = os.environ.get("GOOGLE_SCRIPT_URL")
 
-user_data = {}
 
 def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-    requests.post(url, json={
+    payload = {
         "chat_id": chat_id,
         "text": text
-    })
-
-def save_to_google_sheets(chat_id, state, final_text):
-    if not GOOGLE_SCRIPT_URL:
-        return
-
-    payload = {
-        "telegram_id": chat_id,
-        "name": state.get("name", ""),
-        "phone": state.get("phone", ""),
-        "text": final_text
     }
+    requests.post(url, json=payload)
 
+
+def send_to_google_sheets(name, phone):
     try:
-        requests.post(GOOGLE_SCRIPT_URL, json=payload)
+        data = {
+            "name": name,
+            "phone": phone
+        }
+        requests.post(GOOGLE_SCRIPT_URL, json=data)
     except:
         pass
 
-@app.route('/', methods=['GET'])
-def home():
-    return "OK"
 
-@app.route('/', methods=['POST'])
+user_data = {}
+
+
+@app.route("/", methods=["POST"])
 def webhook():
     data = request.json
 
     if not data or "message" not in data:
         return "ok"
 
-    message = data["message"]
-    chat_id = message["chat"]["id"]
-    text = message.get("text", "")
+    chat_id = str(data["message"]["chat"]["id"])
+    text = data["message"].get("text", "")
 
     if chat_id not in user_data:
-        user_data[chat_id] = {}
+        user_data[chat_id] = {"step": "name"}
 
-    state = user_data[chat_id]
+    step = user_data[chat_id]["step"]
 
-    if text == "/start":
-        send_message(chat_id, "Напишіть ваше ім'я")
-        state["step"] = "name"
+    # КРОК 1 — ім’я
+    if step == "name":
+        user_data[chat_id]["name"] = text
+        user_data[chat_id]["step"] = "phone"
+        send_message(chat_id, "Напишіть ваш номер телефону 📞")
         return "ok"
 
-    if state.get("step") == "name":
-        state["name"] = text
-        state["step"] = "phone"
-        send_message(chat_id, "Ваш телефон")
-        return "ok"
+    # КРОК 2 — телефон
+    if step == "phone":
+        user_data[chat_id]["phone"] = text
 
-    if state.get("step") == "phone":
-        state["phone"] = text
-        save_to_google_sheets(chat_id, state, "Заявка")
-        send_message(chat_id, "Дякуємо! 💛")
-        user_data[chat_id] = {}
+        name = user_data[chat_id]["name"]
+        phone = user_data[chat_id]["phone"]
+
+        send_to_google_sheets(name, phone)
+
+        send_message(chat_id, "Дякуємо! Ми зв’яжемося з вами ❤️")
+
+        user_data[chat_id] = {"step": "name"}
         return "ok"
 
     return "ok"
+
+
+@app.route("/", methods=["GET"])
+def home():
+    return "Bot is running!"
