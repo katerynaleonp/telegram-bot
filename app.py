@@ -45,17 +45,15 @@ def send_to_google_sheets(chat_id, state, final_text):
     try:
         data = {
             "telegram_id": chat_id,
-            "username": state.get("username", ""),
             "request_type": state.get("request_type", ""),
             "parent_name": state.get("name", ""),
             "phone": state.get("phone", ""),
-            "student_name": "",
-            "age": "",
             "final_text": final_text
         }
+
         requests.post(GOOGLE_SCRIPT_URL, json=data, timeout=10)
-    except:
-        pass
+    except Exception as e:
+        print("Google Sheets error:", e)
 
 
 @app.route("/", methods=["POST"])
@@ -68,7 +66,6 @@ def webhook():
     message = data["message"]
     chat_id = str(message["chat"]["id"])
     text = message.get("text", "")
-    username = message.get("from", {}).get("username", "")
 
     if chat_id not in user_data:
         user_data[chat_id] = {}
@@ -83,8 +80,7 @@ def webhook():
     if text == BTN_QUESTION:
         user_data[chat_id] = {
             "step": "name",
-            "request_type": BTN_QUESTION,
-            "username": username
+            "request_type": BTN_QUESTION
         }
         send_message(chat_id, "Напишіть, будь ласка, Ваше ім'я 😊")
         return "ok"
@@ -92,8 +88,7 @@ def webhook():
     if text == BTN_MANAGER:
         user_data[chat_id] = {
             "step": "name",
-            "request_type": BTN_MANAGER,
-            "username": username
+            "request_type": BTN_MANAGER
         }
         send_message(chat_id, "Напишіть, будь ласка, Ваше ім'я 😊")
         return "ok"
@@ -101,8 +96,7 @@ def webhook():
     if text == BTN_CALLBACK:
         user_data[chat_id] = {
             "step": "name",
-            "request_type": BTN_CALLBACK,
-            "username": username
+            "request_type": BTN_CALLBACK
         }
         send_message(chat_id, "Напишіть, будь ласка, Ваше ім'я 😊")
         return "ok"
