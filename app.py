@@ -50,7 +50,7 @@ def webhook():
     if step == "name":
         user_data[chat_id]["name"] = text
         user_data[chat_id]["step"] = "phone"
-        send_message(chat_id, "Напишіть ваш номер телефону 📞")
+        send_message(chat_id, "Залиште, будь ласка, Ваш номер телефону 📞")
         return "ok"
 
     # КРОК 2 — телефон
