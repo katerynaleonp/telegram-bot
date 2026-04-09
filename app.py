@@ -5,41 +5,42 @@ import os
 app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
+GOOGLE_SCRIPT_URL = os.environ.get("GOOGLE_SCRIPT_URL")
 
 user_data = {}
 
-def send_message(chat_id, text, keyboard=None):
+def send_message(chat_id, text):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendMessage"
-
-    payload = {
+    requests.post(url, json={
         "chat_id": chat_id,
         "text": text
+    })
+
+def save_to_google_sheets(chat_id, state, final_text):
+    if not GOOGLE_SCRIPT_URL:
+        return
+
+    payload = {
+        "telegram_id": chat_id,
+        "name": state.get("name", ""),
+        "phone": state.get("phone", ""),
+        "text": final_text
     }
 
-    if keyboard:
-        payload["reply_markup"] = keyboard
+    try:
+        requests.post(GOOGLE_SCRIPT_URL, json=payload)
+    except:
+        pass
 
-    requests.post(url, json=payload)
-
-
-def main_menu(chat_id):
-    keyboard = {
-        "keyboard": [
-            [{"text": "Задати питання"}],
-            [{"text": "Написати менеджеру"}],
-            [{"text": "Замовити зворотний зв'язок"}]
-        ],
-        "resize_keyboard": True
-    }
-
-    send_message(chat_id, "Вітаємо! Оберіть, будь ласка, що Вас цікавить:", keyboard)
-
+@app.route('/', methods=['GET'])
+def home():
+    return "OK"
 
 @app.route('/', methods=['POST'])
 def webhook():
     data = request.json
 
-    if "message" not in data:
+    if not data or "message" not in data:
         return "ok"
 
     message = data["message"]
@@ -52,66 +53,20 @@ def webhook():
     state = user_data[chat_id]
 
     if text == "/start":
-        user_data[chat_id] = {}
-        main_menu(chat_id)
-        return "ok"
-
-    if text == "Задати питання":
-        state["type"] = "question"
+        send_message(chat_id, "Напишіть ваше ім'я")
         state["step"] = "name"
-        send_message(chat_id, "Будь ласка, напишіть ім’я представника.")
-        return "ok"
-
-    if text == "Написати менеджеру":
-        state["type"] = "manager"
-        state["step"] = "name"
-        send_message(chat_id, "Будь ласка, напишіть ім’я представника.")
-        return "ok"
-
-    if text == "Замовити зворотний зв'язок":
-        state["type"] = "callback"
-        state["step"] = "name"
-        send_message(chat_id, "Будь ласка, напишіть ім’я представника.")
         return "ok"
 
     if state.get("step") == "name":
         state["name"] = text
         state["step"] = "phone"
-        send_message(chat_id, "Будь ласка, залиште номер телефону.")
+        send_message(chat_id, "Ваш телефон")
         return "ok"
 
     if state.get("step") == "phone":
         state["phone"] = text
-        state["step"] = "student"
-        send_message(chat_id, "Напишіть, будь ласка, ім’я дитини або учня.")
-        return "ok"
-
-    if state.get("step") == "student":
-        state["student"] = text
-        state["step"] = "age"
-        send_message(chat_id, "Вкажіть, будь ласка, вік.")
-        return "ok"
-
-    if state.get("step") == "age":
-        state["age"] = text
-
-        if state["type"] == "question":
-            state["step"] = "final"
-            send_message(chat_id, "Залиште Ваше питання.")
-            return "ok"
-
-        if state["type"] == "manager":
-            state["step"] = "final"
-            send_message(chat_id, "Залиште Ваше повідомлення.")
-            return "ok"
-
-        if state["type"] == "callback":
-            send_message(chat_id, "Дякуємо за звернення! 💛 Ми скоро зв’яжемося з Вами.")
-            user_data[chat_id] = {}
-            return "ok"
-
-    if state.get("step") == "final":
-        send_message(chat_id, "Дякуємо за звернення! 💛 Ми скоро зв’яжемося з Вами.")
+        save_to_google_sheets(chat_id, state, "Заявка")
+        send_message(chat_id, "Дякуємо! 💛")
         user_data[chat_id] = {}
         return "ok"
 
