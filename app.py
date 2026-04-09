@@ -6,6 +6,7 @@ app = Flask(__name__)
 
 BOT_TOKEN = os.environ.get("BOT_TOKEN")
 GOOGLE_SCRIPT_URL = os.environ.get("GOOGLE_SCRIPT_URL")
+ADMIN_CHAT_ID = "919785891"
 
 user_data = {}
 
@@ -54,6 +55,22 @@ def send_to_google_sheets(chat_id, state, final_text):
         requests.post(GOOGLE_SCRIPT_URL, json=data, timeout=10)
     except Exception as e:
         print("Google Sheets error:", e)
+
+
+def notify_admin(chat_id, state, final_text):
+    try:
+        admin_text = (
+            "🔔 Новий лід\n\n"
+            f"Тип: {state.get('request_type', '')}\n"
+            f"Ім'я: {state.get('name', '')}\n"
+            f"Телефон: {state.get('phone', '')}\n"
+            f"Повідомлення: {final_text}\n"
+            f"Telegram ID: {chat_id}"
+        )
+
+        send_message(ADMIN_CHAT_ID, admin_text)
+    except Exception as e:
+        print("Admin notification error:", e)
 
 
 @app.route("/", methods=["POST"])
@@ -125,7 +142,9 @@ def webhook():
             return "ok"
 
         if state["request_type"] == BTN_CALLBACK:
-            send_to_google_sheets(chat_id, state, "Запит на зворотний зв'язок")
+            final_text = "Запит на зворотний зв'язок"
+            send_to_google_sheets(chat_id, state, final_text)
+            notify_admin(chat_id, state, final_text)
             send_message(chat_id, "Дякуємо! Ми зв’яжемося з вами ❤️")
             user_data[chat_id] = {}
             return "ok"
@@ -133,6 +152,7 @@ def webhook():
     if state["step"] == "final_question":
         final_text = text
         send_to_google_sheets(chat_id, state, final_text)
+        notify_admin(chat_id, state, final_text)
         send_message(chat_id, "Дякуємо! Ми зв’яжемося з вами ❤️")
         user_data[chat_id] = {}
         return "ok"
@@ -140,6 +160,7 @@ def webhook():
     if state["step"] == "final_message":
         final_text = text
         send_to_google_sheets(chat_id, state, final_text)
+        notify_admin(chat_id, state, final_text)
         send_message(chat_id, "Дякуємо! Ми зв’яжемося з вами ❤️")
         user_data[chat_id] = {}
         return "ok"
